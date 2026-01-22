@@ -16,10 +16,5 @@
       "DATABASE_SSL": "true",
       "DATABASE_SCHEMA": "public"
     }
-  },
-  "functions": {
-    "src/**/*.js": {
-      "maxDuration": 30
-    }
   }
 }
