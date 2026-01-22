@@ -16,5 +16,11 @@
       "DATABASE_SSL": "true",
       "DATABASE_SCHEMA": "public"
     }
-  }
+  },
+  "rewrites": [
+    {
+      "source": "/(.*)",
+      "destination": "/$1"
+    }
+  ]
 }
