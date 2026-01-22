@@ -1,0 +1,25 @@
+{
+  "buildCommand": "npm run build",
+  "devCommand": "npm run develop",
+  "installCommand": "npm install",
+  "outputDirectory": ".",
+  "framework": null,
+  "regions": ["iad1"],
+  "env": {
+    "DATABASE_CLIENT": "postgres",
+    "DATABASE_SSL": "true",
+    "DATABASE_SCHEMA": "public"
+  },
+  "build": {
+    "env": {
+      "DATABASE_CLIENT": "postgres",
+      "DATABASE_SSL": "true",
+      "DATABASE_SCHEMA": "public"
+    }
+  },
+  "functions": {
+    "src/**/*.js": {
+      "maxDuration": 30
+    }
+  }
+}
