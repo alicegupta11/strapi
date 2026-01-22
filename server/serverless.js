@@ -1,18 +1,15 @@
-const { createServer } = require('@strapi/strapi');
-const server = require('./index');
+// Use the built Strapi application
+const app = require('../dist/index.js');
 
 module.exports = async (req, res) => {
-  // Ensure Strapi instance exists and is ready
-  if (!server.app) {
-    await server.init();
-  }
-
   // Handle serverless requests
   return new Promise((resolve, reject) => {
-    server.app(req, res, (err) => {
+    app(req, res, (err) => {
       if (err) {
+        console.error('Request handler error:', err);
+        res.status(500).json({ error: 'Internal server error', details: err.message });
         reject(err);
-      return;
+        return;
       }
       resolve();
     });

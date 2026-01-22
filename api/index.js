@@ -1,5 +1,10 @@
-const serverless = require('../server/serverless');
-const cors = require('cors');
+const { Pool } = require('pg');
+
+// Database connection pool
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: process.env.DATABASE_SSL === 'true' ? { rejectUnauthorized: false } : false
+});
 
 module.exports = async (req, res) => {
   // Handle CORS
@@ -12,6 +17,23 @@ module.exports = async (req, res) => {
     return;
   }
 
-  // Forward to Strapi serverless handler
-  return serverless(req, res);
+  try {
+    const client = await pool.connect();
+    
+    // Test database connection
+    const result = await client.query('SELECT NOW()');
+    await client.release();
+    
+    res.status(200).json({ 
+      message: 'Strapi API is running',
+      time: result.rows[0].now,
+      database: 'connected'
+    });
+  } catch (error) {
+    console.error('Database error:', error);
+    res.status(500).json({ 
+      error: 'Database connection failed',
+      details: error.message
+    });
+  }
 };
