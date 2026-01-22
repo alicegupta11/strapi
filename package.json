@@ -21,6 +21,7 @@
     "@strapi/provider-email-nodemailer": "5.33.4",
     "@strapi/strapi": "5.33.4",
     "better-sqlite3": "12.4.1",
+    "cors": "^2.8.6",
     "fs-extra": "^10.0.0",
     "mime-types": "^2.1.27",
     "pg": "^8.17.2",
