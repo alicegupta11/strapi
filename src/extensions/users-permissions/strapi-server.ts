@@ -1,6 +1,7 @@
 'use strict';
 
 const nodeCrypto = require('crypto');
+const { Resend } = require('resend');
 
 module.exports = (plugin) => {
 
@@ -13,7 +14,7 @@ module.exports = (plugin) => {
         strapi.log.info(`📧 Email: ${result.email}`);
         strapi.log.info(`🆔 User ID: ${result.id}`);
 
-        // Fetch the user to get the confirmation token
+        // Fetch user to get the confirmation token
         const user = await strapi.query('plugin::users-permissions.user').findOne({
           where: { id: result.id },
         });
@@ -47,12 +48,24 @@ module.exports = (plugin) => {
 
         strapi.log.info(`🔗 Registration Link: ${registrationLink}`);
 
-        await strapi.plugin('email').service('email').send({
-          to: result.email,
-          subject: 'Welcome! Complete Your Registration',
+        // Initialize Resend client
+        const resendApiKey = process.env.RESEND_API_KEY;
+        const resendFromEmail = process.env.RESEND_FROM_EMAIL;
+        
+        if (!resendApiKey || !resendFromEmail) {
+          strapi.log.warn('⚠️ RESEND_API_KEY or RESEND_FROM_EMAIL not found in environment variables. Email will not be sent.');
+          return;
+        }
 
-          // Plain text email
-          text: `
+        const resend = new Resend(resendApiKey);
+        strapi.log.info(`📧 Sending email via Resend from: ${resendFromEmail}`);
+
+        try {
+          await resend.emails.send({
+            from: resendFromEmail,
+            to: result.email,
+            subject: 'Welcome! Complete Your Registration',
+            text: `
 Hi ${result.username || 'User'},
 
 Welcome! 
@@ -62,9 +75,7 @@ ${registrationLink}
 
 If you did not request this, you can ignore this email.
           `,
-
-          // HTML email
-          html: `
+            html: `
             <p>Hi <b>${result.username || 'User'}</b>,</p>
 
             <p>Welcome!</p>
@@ -79,12 +90,15 @@ If you did not request this, you can ignore this email.
 
             <p>If you did not request this, you can safely ignore this email.</p>
           `,
-        });
+          });
 
-        strapi.log.info('✅ Welcome email sent successfully');
-
+          strapi.log.info('✅ Welcome email sent successfully via Resend');
+        } catch (emailError) {
+          strapi.log.error('❌ Failed to send welcome email via Resend');
+          strapi.log.error(emailError);
+        }
       } catch (error) {
-        strapi.log.error('❌ Failed to send welcome email');
+        strapi.log.error('❌ Error in user creation lifecycle');
         strapi.log.error(error);
       }
     },
