@@ -44,7 +44,9 @@ module.exports = (plugin) => {
           strapi.log.info(`✅ Using existing token: ${confirmationToken}`);
         }
 
-        const registrationLink = `http://localhost:1337/admin/auth/register?confirmationToken=${confirmationToken}`;
+        // Use PUBLIC_URL from environment variable, fallback to localhost for local development
+        const publicUrl = process.env.PUBLIC_URL || 'http://localhost:1337';
+        const registrationLink = `${publicUrl}/admin/auth/register?confirmationToken=${confirmationToken}`;
 
         strapi.log.info(`🔗 Registration Link: ${registrationLink}`);
 
