@@ -1,5 +1,7 @@
 'use strict';
 
+const nodeCrypto = require('crypto');
+
 module.exports = (plugin) => {
 
   plugin.contentTypes.user.lifecycles = {
@@ -7,11 +9,43 @@ module.exports = (plugin) => {
       try {
         const { result } = event;
 
-        const registrationLink =
-          'http://localhost:1337/admin/auth/register?registrationToken=d06af5773f2ecfb6ca15cfd0a9c205a607beee6c';
-
-        strapi.log.info('👤 User created');
+        strapi.log.info('👤 User creation started');
         strapi.log.info(`📧 Email: ${result.email}`);
+        strapi.log.info(`🆔 User ID: ${result.id}`);
+
+        // Fetch the user to get the confirmation token
+        const user = await strapi.query('plugin::users-permissions.user').findOne({
+          where: { id: result.id },
+        });
+
+        strapi.log.info(`📋 Retrieved user from database. Token exists: ${!!user.confirmationToken}`);
+
+        // Generate confirmation token if it doesn't exist
+        let confirmationToken = user.confirmationToken;
+        
+        if (!confirmationToken) {
+          confirmationToken = nodeCrypto.randomBytes(20).toString('hex');
+          strapi.log.info(`🔑 Generated token: ${confirmationToken}`);
+          
+          // Update the user with the generated token and set confirmed to false
+          const updatedUser = await strapi.query('plugin::users-permissions.user').update({
+            where: { id: result.id },
+            data: { 
+              confirmationToken,
+              confirmed: false 
+            },
+          });
+          
+          strapi.log.info('✅ Updated user with confirmation token');
+          strapi.log.info(`🔑 Confirmed token in database: ${updatedUser.confirmationToken}`);
+          strapi.log.info(`✅ Confirmed status: ${updatedUser.confirmed}`);
+        } else {
+          strapi.log.info(`✅ Using existing token: ${confirmationToken}`);
+        }
+
+        const registrationLink = `http://localhost:1337/admin/auth/register?confirmationToken=${confirmationToken}`;
+
+        strapi.log.info(`🔗 Registration Link: ${registrationLink}`);
 
         await strapi.plugin('email').service('email').send({
           to: result.email,
@@ -33,7 +67,7 @@ If you did not request this, you can ignore this email.
           html: `
             <p>Hi <b>${result.username || 'User'}</b>,</p>
 
-            <p>Welcome! </p>
+            <p>Welcome!</p>
 
             <p>Please complete your registration by clicking the link below:</p>
 
@@ -47,10 +81,10 @@ If you did not request this, you can ignore this email.
           `,
         });
 
-        strapi.log.info(' Welcome email sent');
+        strapi.log.info('✅ Welcome email sent successfully');
 
       } catch (error) {
-        strapi.log.error(' Failed to send welcome email');
+        strapi.log.error('❌ Failed to send welcome email');
         strapi.log.error(error);
       }
     },
