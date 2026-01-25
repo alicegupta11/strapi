@@ -46,7 +46,8 @@ module.exports = (plugin) => {
 
         // Use PUBLIC_URL from environment variable, fallback to localhost for local development
         const publicUrl = process.env.PUBLIC_URL || 'http://localhost:1337';
-        const registrationLink = `${publicUrl}/admin/auth/register?confirmationToken=${confirmationToken}`;
+        // Include email in the URL to pre-fill the disabled form field
+        const registrationLink = `${publicUrl}/admin/auth/register?confirmationToken=${confirmationToken}&email=${encodeURIComponent(result.email)}`;
 
         strapi.log.info(`🔗 Registration Link: ${registrationLink}`);
 
