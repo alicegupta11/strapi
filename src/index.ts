@@ -1,20 +1,29 @@
-// import type { Core } from '@strapi/strapi';
+import path from 'path';
 
 export default {
-  /**
-   * An asynchronous register function that runs before
-   * your application is initialized.
-   *
-   * This gives you an opportunity to extend code.
-   */
-  register(/* { strapi }: { strapi: Core.Strapi } */) {},
+  register({ strapi }) {
+    // Serve the registration page
+    strapi.server.router.use(async (ctx, next) => {
+      if (ctx.path === '/registration') {
+        try {
+          const fs = require('fs');
+          const registrationPath = path.join(__dirname, '..', 'public', 'registration.html');
+          const fileContent = fs.readFileSync(registrationPath, 'utf8');
+          ctx.type = 'text/html';
+          ctx.body = fileContent;
+          return;
+        } catch (error) {
+          strapi.log.error('Error serving registration page:', error);
+          ctx.status = 404;
+          ctx.body = 'Registration page not found';
+          return;
+        }
+      }
+      await next();
+    });
+  },
 
-  /**
-   * An asynchronous bootstrap function that runs before
-   * your application gets started.
-   *
-   * This gives you an opportunity to set up your data model,
-   * run jobs, or perform some special logic.
-   */
-  bootstrap(/* { strapi }: { strapi: Core.Strapi } */) {},
+  bootstrap({ strapi }) {
+    // Bootstrap code
+  },
 };
