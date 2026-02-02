@@ -1,6 +1,5 @@
 'use strict';
 
-const nodeCrypto = require('crypto');
 const { Resend } = require('resend');
 
 module.exports = (plugin) => {
@@ -10,98 +9,98 @@ module.exports = (plugin) => {
       try {
         const { result } = event;
 
-        strapi.log.info('👤 User creation started');
+        strapi.log.info('👤 User creation started (Content Manager)');
         strapi.log.info(`📧 Email: ${result.email}`);
-        strapi.log.info(`🆔 User ID: ${result.id}`);
 
-        // Fetch user to get the confirmation token
-        const user = await strapi.query('plugin::users-permissions.user').findOne({
-          where: { id: result.id },
+        // 1. Check if Admin User already exists
+        const existingAdminUser = await strapi.db.query('admin::user').findOne({
+          where: { email: result.email },
         });
 
-        strapi.log.info(`📋 Retrieved user from database. Token exists: ${!!user.confirmationToken}`);
-
-        // Generate confirmation token if it doesn't exist
-        let confirmationToken = user.confirmationToken;
-        
-        if (!confirmationToken) {
-          confirmationToken = nodeCrypto.randomBytes(20).toString('hex');
-          strapi.log.info(`🔑 Generated token: ${confirmationToken}`);
-          
-          // Update the user with the generated token and set confirmed to false
-          const updatedUser = await strapi.query('plugin::users-permissions.user').update({
-            where: { id: result.id },
-            data: { 
-              confirmationToken,
-              confirmed: false 
-            },
-          });
-          
-          strapi.log.info('✅ Updated user with confirmation token');
-          strapi.log.info(`🔑 Confirmed token in database: ${updatedUser.confirmationToken}`);
-          strapi.log.info(`✅ Confirmed status: ${updatedUser.confirmed}`);
-        } else {
-          strapi.log.info(`✅ Using existing token: ${confirmationToken}`);
+        if (existingAdminUser) {
+          strapi.log.warn('⚠️ Admin User with this email already exists. Skipping Admin User creation.');
+          return;
         }
 
-        // Use PUBLIC_URL from environment variable, fallback to localhost for local development
+        // 2. Get Default Role for new Admin Users (Author or Editor)
+        // We look for 'Author' role first, then fall back to any role
+        let defaultRole = await strapi.db.query('admin::role').findOne({
+          where: { code: 'strapi-author' }, // Default Author role code
+        });
+
+        if (!defaultRole) {
+          defaultRole = await strapi.db.query('admin::role').findOne({
+            where: { code: 'strapi-editor' }, // Fallback to Editor
+          });
+        }
+
+        // If still no role, just grab the first one that isn't Super Admin (usually ID 1) to be safe, or just fail
+        if (!defaultRole) {
+          strapi.log.warn('⚠️ No "Author" or "Editor" role found. Cannot create Admin User safely.');
+          return;
+        }
+
+        strapi.log.info(`✅ Assigning Role: ${defaultRole.name} (ID: ${defaultRole.id})`);
+
+        // 3. Create the Admin User
+        // usage: strapi.admin.services.user.create({ ...params })
+        const newAdminUser = await strapi.admin.services.user.create({
+          email: result.email,
+          firstname: result.username || 'New',
+          lastname: 'User',
+          roles: [defaultRole.id],
+          isActive: true, // User is active but needs registration (password set)
+        });
+
+        strapi.log.info('✅ Admin User created successfully');
+        strapi.log.info(`🆔 Admin ID: ${newAdminUser.id}`);
+
+        // 4. Fetch the user to get the automatically generated registrationToken
+        const adminUserWithToken = await strapi.db.query('admin::user').findOne({
+          where: { id: newAdminUser.id },
+        });
+
+        if (!adminUserWithToken || !adminUserWithToken.registrationToken) {
+          strapi.log.error('❌ Registration token not found on admin user');
+          return;
+        }
+
+        const registrationToken = adminUserWithToken.registrationToken;
+        strapi.log.info(`🔑 Registration Token: ${registrationToken}`);
+
+        // 5. Construct Standard Strapi Registration URL
         const publicUrl = process.env.PUBLIC_URL || 'http://localhost:1337';
-        // Include email in the URL to pre-fill the disabled form field
-        const registrationLink = `${publicUrl}/admin/auth/register?confirmationToken=${confirmationToken}&email=${encodeURIComponent(result.email)}`;
+        const registrationLink = `${publicUrl}/admin/auth/register?registrationToken=${registrationToken}`;
 
-        strapi.log.info(`🔗 Registration Link: ${registrationLink}`);
+        strapi.log.info(`🔗 Admin Registration Link: ${registrationLink}`);
 
-        // Initialize Resend client
+        // 6. Send Email via Resend
         const resendApiKey = process.env.RESEND_API_KEY;
         const resendFromEmail = process.env.RESEND_FROM_EMAIL;
-        
+
         if (!resendApiKey || !resendFromEmail) {
-          strapi.log.warn('⚠️ RESEND_API_KEY or RESEND_FROM_EMAIL not found in environment variables. Email will not be sent.');
+          strapi.log.warn('⚠️ RESEND_API_KEY or RESEND_FROM_EMAIL not found. Email not sent.');
           return;
         }
 
         const resend = new Resend(resendApiKey);
-        strapi.log.info(`📧 Sending email via Resend from: ${resendFromEmail}`);
 
-        try {
-          await resend.emails.send({
-            from: resendFromEmail,
-            to: result.email,
-            subject: 'Welcome! Complete Your Registration',
-            text: `
-Hi ${result.username || 'User'},
-
-Welcome! 
-
-Please complete your registration using the link below:
-${registrationLink}
-
-If you did not request this, you can ignore this email.
+        await resend.emails.send({
+          from: resendFromEmail,
+          to: result.email,
+          subject: 'Invite: Join the Strapi Dashboard',
+          html: `
+            <p>Hi ${result.username || 'User'},</p>
+            <p>You have been invited to join the Strapi Administration Panel.</p>
+            <p>Please click the link below to set your password and access the dashboard:</p>
+            <p><a href="${registrationLink}">Complete Registration</a></p>
           `,
-            html: `
-            <p>Hi <b>${result.username || 'User'}</b>,</p>
+        });
 
-            <p>Welcome!</p>
+        strapi.log.info('✅ Invitation email sent successfully');
 
-            <p>Please complete your registration by clicking the link below:</p>
-
-            <p>
-              <a href="${registrationLink}" target="_blank">
-                Complete Registration
-              </a>
-            </p>
-
-            <p>If you did not request this, you can safely ignore this email.</p>
-          `,
-          });
-
-          strapi.log.info('✅ Welcome email sent successfully via Resend');
-        } catch (emailError) {
-          strapi.log.error('❌ Failed to send welcome email via Resend');
-          strapi.log.error(emailError);
-        }
       } catch (error) {
-        strapi.log.error('❌ Error in user creation lifecycle');
+        strapi.log.error('❌ Error in automatic admin user creation');
         strapi.log.error(error);
       }
     },

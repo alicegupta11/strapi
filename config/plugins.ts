@@ -28,4 +28,15 @@ export default ({ env }) => ({
       },
     },
   },
+
+  // Users & Permissions configuration
+  'users-permissions': {
+    enabled: true,
+    config: {
+      register: {
+        // Allow these additional fields during registration
+        allowedFields: ['username', 'password', 'confirmationToken'],
+      },
+    },
+  },
 });

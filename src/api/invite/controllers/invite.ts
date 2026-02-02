@@ -63,8 +63,22 @@ export default {
 
       console.log('✅ Invite created with ID:', invite.id);
 
+      // Fetch user to get username for the registration URL
+      const user = await strapi.entityService.findOne('plugin::users-permissions.user', userId);
+
+      // Update user with confirmation token so registration can find them
+      if (user) {
+        await strapi.entityService.update('plugin::users-permissions.user', userId, {
+          data: {
+            confirmationToken: token,
+            confirmed: false,
+          },
+        });
+        console.log('✅ User updated with confirmation token');
+      }
+
       // Send email with registration link
-      await sendRegistrationEmail(email, token);
+      await sendRegistrationEmail(email, token, user?.username);
 
       ctx.body = {
         success: true,
@@ -97,16 +111,17 @@ function generateToken(length: number) {
   return token;
 }
 
-async function sendRegistrationEmail(email: string, token: string) {
+async function sendRegistrationEmail(email: string, token: string, username?: string) {
   try {
     const resend = require('resend');
     const resendClient = new resend.Resend(strapi.config.get('plugin.email.RESEND_API_KEY'));
     const fromEmail = strapi.config.get('plugin.email.RESEND_FROM_EMAIL', 'send@droidvm.dev');
 
-    // Create registration URL
-    const registrationUrl = `http://localhost:1337/admin/auth/register?confirmationToken=${token}&email=${encodeURIComponent(email)}`;
+    // Create registration URL pointing to custom registration page
+    const registrationUrl = `http://localhost:1337/registration?confirmationToken=${token}&email=${encodeURIComponent(email)}&username=${encodeURIComponent(username || 'user')}`;
 
     console.log('📧 Sending email via Resend from:', fromEmail);
+    console.log('🔗 Registration URL:', registrationUrl);
 
     const data = await resendClient.emails.send({
       from: fromEmail,
